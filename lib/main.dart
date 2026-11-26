@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+const String apiKey = "FAKE-KEY-12345-ABCDE";
 
 void main() {
   runApp(const MyApp());
@@ -105,6 +106,7 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: .center,
           children: [
             const Text('You have pushed the button this many times:'),
+            Text(apiKey),
             Text(
               '$_counter',
               style: Theme.of(context).textTheme.headlineMedium,
