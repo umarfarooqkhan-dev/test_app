@@ -1,4 +1,4 @@
-name: Build Flutter APKs
+name: Build key-hiding levels
 
 on:
   push:
@@ -7,6 +7,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        level: [plain, base64, xor, split, dartdefine]
     steps:
       - uses: actions/checkout@v4
 
@@ -23,20 +27,33 @@ jobs:
 
       - run: flutter pub get
 
-      # Variant 1: plain release build (no obfuscation)
-      - name: Build plain release APK
-        run: |
-          flutter build apk --release
-          mkdir -p out
-          cp build/app/outputs/flutter-apk/app-release.apk out/app-plain.apk
+      - name: Select level
+        run: cp lib/levels/${{ matrix.level }}.dart lib/key_source.dart
 
-      # Variant 2: obfuscated release build
-      - name: Build obfuscated release APK
+      - name: Build plain and obfuscated APKs
         run: |
-          flutter build apk --release --obfuscate --split-debug-info=build/symbols
-          cp build/app/outputs/flutter-apk/app-release.apk out/app-obfuscated.apk
+          DEFINES=""
+          if [ "${{ matrix.level }}" = "dartdefine" ]; then
+            DEFINES="--dart-define=API_KEY=FAKE-KEY-12345-ABCDE"
+          fi
+          mkdir -p out
+          flutter build apk --release $DEFINES
+          cp build/app/outputs/flutter-apk/app-release.apk out/${{ matrix.level }}-plain.apk
+          flutter build apk --release --obfuscate --split-debug-info=build/symbols $DEFINES
+          cp build/app/outputs/flutter-apk/app-release.apk out/${{ matrix.level }}-obfuscated.apk
+
+      - name: Search APKs for the key
+        run: |
+          for f in out/*.apk; do
+            rm -rf x && mkdir x && unzip -q "$f" -d x
+            echo "== $f"
+            for p in "FAKE-KEY-12345-ABCDE" "RkFLRS1LRVktMTIzNDUtQUJDREU=" "ABCDE"; do
+              n=$(grep -raoF -- "$p" x | wc -l)
+              echo "   '$p' -> $n match(es)"
+            done
+          done | tee out/results.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: apks
-          path: out/*.apk
+          name: apks-${{ matrix.level }}
+          path: out/*
